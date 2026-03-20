@@ -2,191 +2,53 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#1a1a1e" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <link rel="manifest" href="manifest.json" />
-  <link rel="icon" href="icon.svg" type="image/svg+xml" />
-  <title>Тест</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Сайт: страница с iframe (iOS Safari)</title>
   <style>
-    :root {
-      --isl-vh: 1%;
-    }
-
-    * { box-sizing: border-box; }
-
-    html,
+    /*
+      У app.html во фрейме часто нет прокрутки документа — так и должно быть.
+      Прокрутку вкладки для панелей Safari даёт этот документ (родитель), иначе scrollBy нечем двигать.
+    */
+    html { height: 100%; }
     body {
       margin: 0;
-      padding: 0;
-      min-height: 100%;
+      min-height: calc(100dvh + 96px);
       font-family: system-ui, sans-serif;
-      background: #1a1a1e;
-      color: #eee;
+      background: #111;
+      color: #ccc;
     }
-
-    html.isl-locked,
-    html.isl-locked body {
-      overflow: hidden;
-      position: relative;
-      height: 100dvh;
-      overscroll-behavior: none;
-    }
-
-    #app-root {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
-      min-height: 100dvh;
-    }
-
-    button {
-      padding: 14px 28px;
-      font-size: 1rem;
-      border: none;
-      border-radius: 10px;
-      background: #3b82f6;
-      color: #fff;
-      cursor: pointer;
-      touch-action: manipulation;
-    }
-    button:active { transform: scale(0.98); }
-
-    /* iOS Safari: скрытие нижней панели вкладок (техника Playgama) */
-    .isl-holder {
-      position: fixed;
-      left: 0;
-      top: 0;
-      width: 100%;
-      height: min(calc(var(--isl-vh) * 100), 100%);
-      overflow: hidden;
-      z-index: 2147483646;
-      display: none;
-    }
-
-    html.isl-locked .isl-holder {
-      display: block;
-    }
-
-    .isl-scroller {
+    p { padding: 12px 16px; margin: 0; font-size: 14px; line-height: 1.4; }
+    iframe {
       display: block;
       width: 100%;
-      height: 100%;
-      overflow-x: hidden;
-      overflow-y: auto;
-      overscroll-behavior: none;
-      scrollbar-width: none;
-      -webkit-overflow-scrolling: touch;
+      height: 70vh;
+      border: 0;
+      background: #222;
     }
-
-    .isl-scroller::-webkit-scrollbar {
-      display: none;
-    }
-
-    .isl-scroller-inner {
-      display: flex;
-      justify-content: flex-start;
-      align-items: stretch;
-      flex-direction: column;
-      height: calc(100% + 1px);
-      min-height: calc(100% + 1px);
-    }
-
-    #isl-content {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      flex-direction: column;
-      position: sticky;
-      width: 100%;
-      height: calc(100% - 1px);
-      top: 0;
-      bottom: 0;
-    }
-
-    .isl-overlay {
-      position: fixed;
-      inset: 0;
-      display: none;
-      align-items: flex-start;
-      justify-content: center;
-      padding: 12px env(safe-area-inset-right) 0 env(safe-area-inset-left);
-      z-index: 2147483647;
-      pointer-events: none;
-    }
-
-    .isl-overlay.isl-visible {
-      display: flex;
-    }
-
-    .isl-bubble {
-      max-width: 80vw;
-      backdrop-filter: blur(8px);
-      background: rgba(0, 0, 0, 0.5);
-      color: #fff;
-      border-radius: 96px;
-      padding: 12px 16px;
-      font-size: 14px;
-      line-height: 1.35;
-      pointer-events: auto;
-    }
-
-    .isl-spacer {
-      display: none;
-      width: 1px;
-      height: 2000vh;
-    }
-
-    .isl-spacer.isl-visible {
-      display: block;
-    }
-
-    /* Вне secure context (file://, http без localhost) Fullscreen API недоступен — запасной режим на весь видимый таб */
-    html.immersive-fallback {
-      overflow: hidden !important;
-    }
-
-    html.immersive-fallback body {
-      overflow: hidden !important;
-    }
-
-    html.immersive-fallback #app-root {
-      position: fixed;
-      inset: 0;
-      z-index: 2147483000;
-      box-sizing: border-box;
-      width: 100vw !important;
-      height: 100vh !important;
-      min-height: 100vh !important;
-      margin: 0;
-      background: #1a1a1e;
-    }
+    .tall { height: 120vh; padding: 16px; background: #1a1a1e; }
   </style>
 </head>
 <body>
-  <main id="app-root">
-    <button type="button" id="action">Полный экран</button>
-  </main>
-
-  <div class="isl-holder" aria-hidden="true">
-    <div class="isl-scroller">
-      <div class="isl-scroller-inner">
-        <div id="isl-content"></div>
-      </div>
-    </div>
+  <p>
+    Это <strong>корневой index.html</strong> (страница сайта). После <code>vite build</code> в <code>dist/</code>
+    лежат рядом <code>index.html</code> (этот файл) и <code>app.html</code> — его указывают во фрейме; там же
+    <code>main.js</code> и ассеты. У документа во фрейме обычно <strong>нет</strong> прокрутки — нормально.
+    На iOS панели Safari двигает прокрутка <strong>вкладки</strong>: (1) <code>body { min-height: calc(100dvh + 96px); }</code>
+    здесь; (2) скрипт <code>postMessage</code> → <code>window.scrollBy</code> ниже.
+  </p>
+  <iframe src="./app.html" title="приложение (app.html)" allow="fullscreen"></iframe>
+  <div class="tall">
+    Дополнительный блок для наглядности — даже без него <code>min-height</code> у <code>body</code> уже даёт прокрутку вкладке.
   </div>
-
-  <div class="isl-overlay" role="status">
-    <div class="isl-bubble">
-      Прокрутите страницу вниз, чтобы скрыть панель Safari и развернуть экран
-    </div>
-  </div>
-
-  <div class="isl-spacer" aria-hidden="true"></div>
-
-  <script type="module" src="./main.js"></script>
+  <script>
+    window.addEventListener("message", (e) => {
+      // В продакшене: if (e.origin !== "https://ваш-домен") return;
+      const d = e.data;
+      if (!d || d.source !== "hide-mobile-browser-tabs" || d.type !== "chrome-nudge") return;
+      const dy = typeof d.deltaY === "number" && d.deltaY > 0 ? d.deltaY : 48;
+      const behavior = d.behavior === "smooth" ? "smooth" : "auto";
+      window.scrollBy({ top: dy, left: 0, behavior });
+    });
+  </script>
 </body>
 </html>

@@ -19,6 +19,10 @@ pnpm-debug.log*
 # Vite
 .vite/
 
+# iOS WKWebView bundle (после `npm run build` выполните ios/sync-www.sh)
+ios/FullscreenShell/FullscreenShell/www/*
+!ios/FullscreenShell/FullscreenShell/www/.gitkeep
+
 # OS
 .DS_Store
 Thumbs.db

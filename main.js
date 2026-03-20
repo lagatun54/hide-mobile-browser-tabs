@@ -44,7 +44,11 @@ function syncLabel() {
 }
 
 function isImmersive() {
-  return !!getFullscreenElement() || document.documentElement.classList.contains("immersive-fallback");
+  return (
+    !!getFullscreenElement() ||
+    document.documentElement.classList.contains("immersive-fallback") ||
+    iosNativeVideoFullscreen
+  );
 }
 
 function enterPseudoFullscreen() {
@@ -59,16 +63,157 @@ function isIosTouchDevice() {
   return /(iPhone|iPad|iPod)/.test(navigator.userAgent);
 }
 
+/** iOS WebKit: нативный полноэкран для HTMLVideoElement — webkitEnterFullscreen (Apple). */
+let iosNativeVideoFullscreen = false;
+
+function getPrimaryVideo() {
+  return document.getElementById("isl-demo-video") || document.querySelector("video");
+}
+
+function ensureIosVideoFullscreenListeners(video) {
+  if (!video || video.dataset.islWebkitFsHooks) return;
+  video.dataset.islWebkitFsHooks = "1";
+  video.addEventListener("webkitbeginfullscreen", () => {
+    iosNativeVideoFullscreen = true;
+    syncLabel();
+  });
+  video.addEventListener("webkitendfullscreen", () => {
+    iosNativeVideoFullscreen = false;
+    syncLabel();
+  });
+}
+
+function tryIosVideoWebkitEnterFullscreen() {
+  if (!isIosTouchDevice()) return false;
+  const video = getPrimaryVideo();
+  if (!video) return false;
+  const enter = video.webkitEnterFullscreen;
+  if (typeof enter !== "function") return false;
+  ensureIosVideoFullscreenListeners(video);
+  try {
+    enter.call(video);
+    return true;
+  } catch (err) {
+    logFullscreen("webkitEnterFullscreen не удался:", err?.message || err);
+    return false;
+  }
+}
+
+function tryIosVideoWebkitExitFullscreen() {
+  const video = getPrimaryVideo();
+  const exit = video?.webkitExitFullscreen;
+  if (video && typeof exit === "function") {
+    try {
+      exit.call(video);
+      return true;
+    } catch (err) {
+      logFullscreen("webkitExitFullscreen не удался:", err?.message || err);
+    }
+  }
+  return false;
+}
+
+/** Нативная оболочка WKWebView выставляет флаг; element fullscreen вызывается отсюда же из JS. */
+function isWkWebViewShellWithElementFullscreen() {
+  return window.__WK_SHELL_ELEMENT_FULLSCREEN__ === true;
+}
+
+function pickElementFullscreenTarget() {
+  return (
+    document.querySelector("canvas") ||
+    document.getElementById("app-root") ||
+    document.body
+  );
+}
+
+/** Во фрейме прокрутка document фрейма не двигает окно вкладки Safari — нужен scroll у родителя. */
+function isEmbeddedFrame() {
+  try {
+    return window.self !== window.top;
+  } catch {
+    return true;
+  }
+}
+
+const ISL_PARENT_MSG = Object.freeze({
+  source: "hide-mobile-browser-tabs",
+  type: "chrome-nudge",
+});
+
+function notifyParentChromeNudge(deltaY, behavior = "smooth") {
+  if (!isEmbeddedFrame()) return;
+  try {
+    window.parent.postMessage(
+      {
+        source: ISL_PARENT_MSG.source,
+        type: ISL_PARENT_MSG.type,
+        deltaY,
+        behavior,
+      },
+      "*"
+    );
+  } catch (err) {
+    logFullscreen("postMessage родителю не удался:", err?.message || err);
+  }
+}
+
+/**
+ * Верхняя панель Safari чаще реагирует на прокрутку документа вкладки, а не на overflow внутри fixed / iframe.
+ * Во фрейме шлём родителю postMessage (обработчик в корневом index.html).
+ */
+function nudgeWindowScrollForIosTopChrome(done) {
+  if (isEmbeddedFrame()) {
+    const dy = Math.max(48, Math.floor(window.innerHeight * 0.12));
+    notifyParentChromeNudge(dy, "smooth");
+    done?.();
+    return;
+  }
+
+  const bridge = document.getElementById("isl-top-chrome-bridge");
+  if (!bridge) {
+    done?.();
+    return;
+  }
+
+  root.classList.add("isl-page-nudge");
+  bridge.classList.add("isl-visible");
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const room = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      const maxY = room > 0 ? Math.max(1, Math.min(Math.floor(window.innerHeight * 0.12), room)) : 0;
+      if (maxY > 0) {
+        window.scrollTo({ top: maxY, left: 0, behavior: "smooth" });
+      }
+      done?.();
+
+      window.setTimeout(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+        root.classList.remove("isl-page-nudge");
+        bridge.classList.remove("isl-visible");
+      }, 420);
+    });
+  });
+}
+
 /** В iOS Safari нет полноэкранного API для страницы — панель вкладок убирают скроллом (см. isl-spacer / .isl-scroller). */
 function tryImmersiveScrollOnIos() {
   const locked = document.documentElement.classList.contains("isl-locked");
   const scroller = document.querySelector(".isl-scroller");
 
   if (locked && scroller) {
-    const delta = Math.max(48, Math.floor(scroller.clientHeight * 0.35));
-    const max = scroller.scrollHeight - scroller.clientHeight;
-    const target = Math.min(max, scroller.scrollTop + delta);
-    scroller.scrollTo({ top: target, behavior: "smooth" });
+    nudgeWindowScrollForIosTopChrome(() => {
+      const delta = Math.max(48, Math.floor(scroller.clientHeight * 0.35));
+      const max = scroller.scrollHeight - scroller.clientHeight;
+      const target = Math.min(max, scroller.scrollTop + delta);
+      scroller.scrollTo({ top: target, behavior: "smooth" });
+    });
+    return;
+  }
+
+  if (isEmbeddedFrame()) {
+    const dy = Math.max(48, Math.floor(window.innerHeight * 0.35));
+    notifyParentChromeNudge(dy, "smooth");
     return;
   }
 
@@ -92,6 +237,9 @@ function tryRequestFullscreen() {
 btn.addEventListener("click", () => {
   if (isImmersive()) {
     logFullscreen("выход из режима");
+    if (iosNativeVideoFullscreen) {
+      tryIosVideoWebkitExitFullscreen();
+    }
     if (getFullscreenElement()) {
       exitFullscreenDoc().catch((err) => {
         console.warn("[fullscreen] exitFullscreen не удался:", err?.message || err);
@@ -102,7 +250,25 @@ btn.addEventListener("click", () => {
     return;
   }
 
+  if (isWkWebViewShellWithElementFullscreen()) {
+    const target = pickElementFullscreenTarget();
+    logFullscreen("WKWebView shell: element fullscreen из web на", target?.tagName ?? "(нет узла)");
+    requestFullscreenFor(target)
+      .then(() => logFullscreen("element fullscreen принят"))
+      .catch((err) => {
+        console.warn("[fullscreen] element fullscreen в shell отклонён:", err?.message || err);
+        tryImmersiveScrollOnIos();
+      })
+      .finally(syncLabel);
+    return;
+  }
+
   if (isIosTouchDevice()) {
+    if (tryIosVideoWebkitEnterFullscreen()) {
+      logFullscreen("iOS: webkitEnterFullscreen для video");
+      syncLabel();
+      return;
+    }
     logFullscreen("iOS: скролл (Fullscreen API для страницы недоступен)");
     tryImmersiveScrollOnIos();
     return;
@@ -132,6 +298,8 @@ document.addEventListener("keydown", (e) => {
   });
 });
 syncLabel();
+
+ensureIosVideoFullscreenListeners(getPrimaryVideo());
 
 logFullscreen("готово", {
   isSecureContext: window.isSecureContext,
@@ -202,3 +370,13 @@ function initIosSafariTabLayout() {
 }
 
 initIosSafariTabLayout();
+
+function initIframeEmbedHint() {
+  const note = document.querySelector(".isl-embed-note");
+  if (!note || !isEmbeddedFrame()) return;
+  note.hidden = false;
+  note.textContent =
+    "Во фрейме у app.html нет прокрутки документа — нормально. Родительский index.html уже задаёт min-height и postMessage→scrollBy; при встраивании на другой сайт скопируйте оттуда CSS и скрипт.";
+}
+
+initIframeEmbedHint();

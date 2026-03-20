@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "start": "npm run dev",
-    "build": "vite build",
+    "build": "vite build && cp index.html dist/index.html",
+    "ios:www": "npm run build && ./ios/sync-www.sh",
+    "preview": "vite preview",
     "dev": "vite"
   },
   "keywords": [],
