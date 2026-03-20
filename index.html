@@ -143,6 +143,27 @@
     .isl-spacer.isl-visible {
       display: block;
     }
+
+    /* Вне secure context (file://, http без localhost) Fullscreen API недоступен — запасной режим на весь видимый таб */
+    html.immersive-fallback {
+      overflow: hidden !important;
+    }
+
+    html.immersive-fallback body {
+      overflow: hidden !important;
+    }
+
+    html.immersive-fallback #app-root {
+      position: fixed;
+      inset: 0;
+      z-index: 2147483000;
+      box-sizing: border-box;
+      width: 100vw !important;
+      height: 100vh !important;
+      min-height: 100vh !important;
+      margin: 0;
+      background: #1a1a1e;
+    }
   </style>
 </head>
 <body>

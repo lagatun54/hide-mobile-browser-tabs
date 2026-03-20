@@ -34,7 +34,21 @@ function exitFullscreenDoc() {
 }
 
 function syncLabel() {
-  btn.textContent = getFullscreenElement() ? "Выйти" : "Полный экран";
+  const inApi = !!getFullscreenElement();
+  const inPseudo = document.documentElement.classList.contains("immersive-fallback");
+  btn.textContent = inApi || inPseudo ? "Выйти" : "Полный экран";
+}
+
+function isImmersive() {
+  return !!getFullscreenElement() || document.documentElement.classList.contains("immersive-fallback");
+}
+
+function enterPseudoFullscreen() {
+  document.documentElement.classList.add("immersive-fallback");
+}
+
+function exitPseudoFullscreen() {
+  document.documentElement.classList.remove("immersive-fallback");
 }
 
 function isIosTouchDevice() {
@@ -61,16 +75,38 @@ function tryImmersiveScrollOnIos() {
   window.scrollTo({ top: next, behavior: "smooth" });
 }
 
-btn.addEventListener("click", () => {
-  if (!getFullscreenElement()) {
-    if (isIosTouchDevice()) {
-      tryImmersiveScrollOnIos();
-      return;
-    }
-    requestFullscreenFor(root).catch(() => {});
-  } else {
-    exitFullscreenDoc().catch(() => {});
+function tryRequestFullscreen() {
+  if (!window.isSecureContext) {
+    return Promise.reject(new Error("Fullscreen API требует HTTPS или localhost"));
   }
+  return requestFullscreenFor(root).catch(() => requestFullscreenFor(document.body));
+}
+
+btn.addEventListener("click", () => {
+  if (isImmersive()) {
+    if (getFullscreenElement()) exitFullscreenDoc().catch(() => {});
+    exitPseudoFullscreen();
+    syncLabel();
+    return;
+  }
+
+  if (isIosTouchDevice()) {
+    tryImmersiveScrollOnIos();
+    return;
+  }
+
+  tryRequestFullscreen()
+    .catch(() => {
+      enterPseudoFullscreen();
+    })
+    .finally(syncLabel);
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (!document.documentElement.classList.contains("immersive-fallback")) return;
+  exitPseudoFullscreen();
+  syncLabel();
 });
 
 ["fullscreenchange", "webkitfullscreenchange", "mozfullscreenchange", "MSFullscreenChange"].forEach((ev) => {
