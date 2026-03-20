@@ -37,8 +37,36 @@ function syncLabel() {
   btn.textContent = getFullscreenElement() ? "Выйти" : "Полный экран";
 }
 
+function isIosTouchDevice() {
+  return /(iPhone|iPad|iPod)/.test(navigator.userAgent);
+}
+
+/** В iOS Safari нет полноэкранного API для страницы — панель вкладок убирают скроллом (см. isl-spacer / .isl-scroller). */
+function tryImmersiveScrollOnIos() {
+  const locked = document.documentElement.classList.contains("isl-locked");
+  const scroller = document.querySelector(".isl-scroller");
+
+  if (locked && scroller) {
+    const delta = Math.max(48, Math.floor(scroller.clientHeight * 0.35));
+    const max = scroller.scrollHeight - scroller.clientHeight;
+    const target = Math.min(max, scroller.scrollTop + delta);
+    scroller.scrollTo({ top: target, behavior: "smooth" });
+    return;
+  }
+
+  const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+  const delta = Math.max(48, Math.floor(window.innerHeight * 0.35));
+  let next = Math.min(maxScroll, window.pageYOffset + delta);
+  if (next <= window.pageYOffset && maxScroll > 0) next = Math.min(maxScroll, 1);
+  window.scrollTo({ top: next, behavior: "smooth" });
+}
+
 btn.addEventListener("click", () => {
   if (!getFullscreenElement()) {
+    if (isIosTouchDevice()) {
+      tryImmersiveScrollOnIos();
+      return;
+    }
     requestFullscreenFor(root).catch(() => {});
   } else {
     exitFullscreenDoc().catch(() => {});
