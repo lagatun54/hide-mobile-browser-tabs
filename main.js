@@ -1,6 +1,10 @@
 const btn = document.getElementById("action");
 const root = document.documentElement;
 
+function logFullscreen(...args) {
+  console.log("[fullscreen]", ...args);
+}
+
 function getFullscreenElement() {
   return (
     document.fullscreenElement ||
@@ -79,24 +83,36 @@ function tryRequestFullscreen() {
   if (!window.isSecureContext) {
     return Promise.reject(new Error("Fullscreen API требует HTTPS или localhost"));
   }
-  return requestFullscreenFor(root).catch(() => requestFullscreenFor(document.body));
+  return requestFullscreenFor(root).catch((err) => {
+    console.warn("[fullscreen] documentElement.requestFullscreen отклонён:", err?.message || err);
+    return requestFullscreenFor(document.body);
+  });
 }
 
 btn.addEventListener("click", () => {
   if (isImmersive()) {
-    if (getFullscreenElement()) exitFullscreenDoc().catch(() => {});
+    logFullscreen("выход из режима");
+    if (getFullscreenElement()) {
+      exitFullscreenDoc().catch((err) => {
+        console.warn("[fullscreen] exitFullscreen не удался:", err?.message || err);
+      });
+    }
     exitPseudoFullscreen();
     syncLabel();
     return;
   }
 
   if (isIosTouchDevice()) {
+    logFullscreen("iOS: скролл (Fullscreen API для страницы недоступен)");
     tryImmersiveScrollOnIos();
     return;
   }
 
+  logFullscreen("запрос API fullscreen…", { isSecureContext: window.isSecureContext });
   tryRequestFullscreen()
-    .catch(() => {
+    .then(() => logFullscreen("вошли в API fullscreen"))
+    .catch((err) => {
+      console.warn("[fullscreen] API fullscreen недоступен, включаю CSS-fallback:", err?.message || err);
       enterPseudoFullscreen();
     })
     .finally(syncLabel);
@@ -110,9 +126,18 @@ document.addEventListener("keydown", (e) => {
 });
 
 ["fullscreenchange", "webkitfullscreenchange", "mozfullscreenchange", "MSFullscreenChange"].forEach((ev) => {
-  document.addEventListener(ev, syncLabel);
+  document.addEventListener(ev, () => {
+    logFullscreen("событие:", ev, "element =", getFullscreenElement()?.tagName ?? null);
+    syncLabel();
+  });
 });
 syncLabel();
+
+logFullscreen("готово", {
+  isSecureContext: window.isSecureContext,
+  protocol: window.location.protocol,
+  origin: window.location.origin || "(пусто)",
+});
 
 
 function initIosSafariTabLayout() {
