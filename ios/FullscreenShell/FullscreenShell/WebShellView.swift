@@ -29,7 +29,7 @@ struct WebShellView: UIViewRepresentable {
         context.coordinator.observeFullscreenState(webView)
 
         if let www = Bundle.main.resourceURL?.appendingPathComponent("www", isDirectory: true) {
-            let html = www.appendingPathComponent("app.html")
+            let html = www.appendingPathComponent("index.html")
             if FileManager.default.fileExists(atPath: html.path) {
                 webView.loadFileURL(html, allowingReadAccessTo: www)
                 return webView
